@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <title>PDF签名工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #4338ca;
+            --primary-light: #818cf8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: var(--gray-800);
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(255, 255, 255, 0.98);
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--shadow-md);
+            z-index: 100;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .logo svg { width: 28px; height: 28px; }
+
+        .header-actions { display: flex; gap: 8px; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-outline { background: white; border: 1.5px solid var(--gray-300); color: var(--gray-700); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-icon { padding: 8px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Main Content */
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-title { font-size: 15px; font-weight: 600; }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 14px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Signature List */
+        .signature-list { display: grid; gap: 10px; margin-bottom: 10px; }
+
+        .signature-item {
+            background: var(--gray-50);
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            padding: 10px;
+            transition: all 0.15s;
+        }
+
+        .signature-item:hover { border-color: var(--primary-light); }
+
+        .signature-preview {
+            width: 100%;
+            height: 50px;
+            object-fit: contain;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .signature-name {
+            font-size: 11px;
+            color: var(--gray-500);
+            margin-top: 6px;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .signature-actions { display: flex; gap: 4px; margin-top: 8px; }
+        .signature-actions .btn { flex: 1; padding: 5px 6px; font-size: 11px; }
+
+        .add-signature-btn {
+            width: 100%;
+            padding: 30px 16px;
+            border: 2px dashed var(--gray-300);
+            border-radius: 10px;
+            background: transparent;
+            color: var(--gray-500);
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+
+        .add-signature-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .add-signature-btn svg { width: 28px; height: 28px; }
+
+        /* Viewer Area */
+        .viewer-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--gray-200);
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        .viewer-toolbar {
+            background: white;
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-group { display: flex; align-items: center; gap: 6px; }
+
+        .page-nav {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--gray-100);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .page-nav input {
+            width: 40px;
+            padding: 3px 6px;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        .zoom-value { min-width: 45px; text-align: center; font-size: 13px; color: var(--gray-600); }
+
+        /* PDF Container */
+        .pdf-container {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 16px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .pdf-wrapper {
+            position: relative;
+            box-shadow: var(--shadow-xl);
+            background: white;
+            flex-shrink: 0;
+        }
+
+        #pdf-canvas { display: block; }
+
+        .signatures-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* Placed Signature */
+        .placed-signature {
+            position: absolute;
+            pointer-events: auto;
+            user-select: none;
+            touch-action: none;
+            cursor: default;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .placed-signature img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+            -webkit-user-drag: none;
+        }
+
+        .placed-signature.editing {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+            cursor: move;
+            z-index: 100;
+        }
+
+        .placed-signature .resize-handle {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: var(--primary);
+            border: 2px solid white;
+            border-radius: 50%;
+            bottom: -11px;
+            right: -11px;
+            display: none;
+            cursor: se-resize;
+            touch-action: none;
+            z-index: 10;
+        }
+
+        .placed-signature.editing .resize-handle { display: block; }
+
+        .placed-signature .delete-btn {
+            position: absolute;
+            top: -12px;
+            right: -12px;
+            width: 26px;
+            height: 26px;
+            background: var(--danger);
+            color: white;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 10;
+        }
+
+        .placed-signature.editing .delete-btn { display: flex; }
+
+        /* Edit hint */
+        .edit-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 13px;
+            z-index: 500;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+            pointer-events: none;
+        }
+
+        .edit-hint.visible { opacity: 1; visibility: visible; }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--gray-500);
+            text-align: center;
+            padding: 30px;
+        }
+
+        .empty-state svg { width: 70px; height: 70px; margin-bottom: 16px; opacity: 0.5; }
+        .empty-state h3 { font-size: 1.1rem; margin-bottom: 6px; color: var(--gray-700); }
+        .empty-state p { margin-bottom: 16px; font-size: 14px; }
+
+        /* Placing Mode */
+        .placing-mode {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            box-shadow: var(--shadow-lg);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .placing-mode.active { display: flex; }
+        .placing-mode button {
+            background: white;
+            color: var(--primary);
+            border: none;
+            padding: 4px 12px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 12px;
+        }
+
+        /* Zoom Indicator */
+        .zoom-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 22px;
+            font-weight: 600;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.15s;
+            pointer-events: none;
+        }
+
+        .zoom-indicator.visible { opacity: 1; visibility: visible; }
+
+        /* Page Thumbnails */
+        .page-thumbnails {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 10px 14px;
+            background: white;
+            border-top: 1px solid var(--gray-200);
+            flex-shrink: 0;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .thumbnail {
+            flex-shrink: 0;
+            width: 70px;
+            border: 2px solid var(--gray-200);
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+
+        .thumbnail.active { border-color: var(--primary); box-shadow: var(--shadow-md); }
+        .thumbnail img { width: 100%; display: block; }
+
+        .thumbnail-number {
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 9px;
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        .thumbnail .has-signature {
+            position: absolute;
+            top: 3px;
+            right: 3px;
+            width: 10px;
+            height: 10px;
+            background: var(--success);
+            border-radius: 50%;
+            border: 1.5px solid white;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 16px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+        }
+
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+
+        .modal {
+            background: white;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 85vh;
+            overflow: hidden;
+            transform: scale(0.95);
+            transition: transform 0.2s;
+        }
+
+        .modal-overlay.active .modal { transform: scale(1); }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title { font-size: 1.1rem; font-weight: 600; }
+
+        .modal-close {
+            width: 30px;
+            height: 30px;
+            border: none;
+            background: var(--gray-100);
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            max-height: calc(85vh - 130px);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .modal-footer {
+            padding: 14px 20px;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* Signature Tabs */
+        .signature-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid var(--gray-200);
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+
+        .tab-btn.active { border-color: var(--primary); background: rgba(79, 70, 229, 0.05); color: var(--primary); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .signature-canvas-wrapper {
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            overflow: hidden;
+            background: white;
+            position: relative;
+        }
+
+        #signature-canvas {
+            width: 100%;
+            height: 180px;
+            display: block;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .canvas-placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--gray-400);
+            pointer-events: none;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .canvas-placeholder.hidden { display: none; }
+
+        .signature-options { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+        .option-group { display: flex; align-items: center; gap: 6px; }
+        .option-label { font-size: 13px; color: var(--gray-600); }
+        .color-picker { display: flex; gap: 5px; }
+
+        .color-option {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .color-option.selected { border-color: var(--gray-700); box-shadow: 0 0 0 2px white, 0 0 0 3px var(--gray-400); }
+
+        .stroke-width { display: flex; gap: 5px; }
+
+        .stroke-option {
+            width: 30px;
+            height: 30px;
+            border: 2px solid var(--gray-200);
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .stroke-option.selected { border-color: var(--primary); background: rgba(79, 70, 229, 0.1); }
+        .stroke-option span { display: block; border-radius: 50%; background: var(--gray-800); }
+
+        .canvas-actions { display: flex; gap: 6px; margin-top: 10px; }
+
+        .text-signature-input {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            font-size: 22px;
+            text-align: center;
+            outline: none;
+        }
+
+        .text-signature-input:focus { border-color: var(--primary); }
+
+        .font-selector { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 14px; }
+
+        .font-option {
+            padding: 10px;
+            border: 2px solid var(--gray-200);
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .font-option.selected { border-color: var(--primary); background: rgba(79, 70, 229, 0.05); }
+
+        .text-preview {
+            margin-top: 14px;
+            padding: 16px;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            text-align: center;
+            min-height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            background: white;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--gray-300);
+            border-radius: 10px;
+            padding: 35px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .upload-area:hover { border-color: var(--primary); background: rgba(79, 70, 229, 0.03); }
+        .upload-area svg { width: 40px; height: 40px; color: var(--gray-400); margin-bottom: 10px; }
+        .upload-area p { font-size: 14px; color: var(--gray-600); }
+        .upload-area small { font-size: 12px; color: var(--gray-400); }
+
+        .upload-preview { margin-top: 14px; text-align: center; }
+        .upload-preview img { max-width: 100%; max-height: 130px; border-radius: 6px; }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+        }
+
+        .loading-overlay.active { opacity: 1; visibility: visible; }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--gray-200);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text { margin-top: 14px; color: var(--gray-600); font-size: 14px; }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .toast {
+            padding: 10px 16px;
+            background: var(--gray-800);
+            color: white;
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+            font-size: 13px;
+            animation: slideIn 0.25s ease;
+        }
+
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Mobile */
+        .mobile-menu-btn { display: none; }
+        .sidebar-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 199;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+        }
+        .sidebar-overlay.open { opacity: 1; visibility: visible; }
+
+        @media (max-width: 768px) {
+            .logo span { display: none; }
+            .sidebar {
+                position: fixed;
+                left: 0; top: 0; bottom: 0;
+                z-index: 200;
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+            }
+            .sidebar.open { transform: translateX(0); }
+            .mobile-menu-btn { display: flex; }
+            .btn span { display: none; }
+            .viewer-toolbar { padding: 6px 10px; gap: 8px; }
+            .pdf-container { padding: 10px; }
+            .modal { max-width: none; margin: 8px; }
+            .toast-container { left: 16px; right: 16px; }
+            .toast { text-align: center; }
+            .placing-mode { bottom: 70px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <div class="logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <path d="M16 13H8M16 17H8M10 9H8"></path>
+                </svg>
+                <span>PDF签名工具</span>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-outline mobile-menu-btn" onclick="toggleSidebar()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <label class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <span>上传PDF</span>
+                    <input type="file" accept=".pdf" id="pdf-input" hidden>
+                </label>
+                <button class="btn btn-success" onclick="exportPDF()" id="export-btn" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>导出</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <h2 class="sidebar-title">我的签名</h2>
+                    <button class="btn btn-icon btn-outline" onclick="clearAllSignatures()" title="清空">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="sidebar-content">
+                    <div class="signature-list" id="signature-list"></div>
+                    <button class="add-signature-btn" onclick="openSignatureModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>创建新签名</span>
+                    </button>
+                </div>
+            </aside>
+
+            <main class="viewer-area">
+                <div class="viewer-toolbar" id="viewer-toolbar" style="display: none;">
+                    <div class="toolbar-group">
+                        <div class="page-nav">
+                            <button class="btn btn-icon btn-outline" onclick="prevPage()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                            </button>
+                            <input type="number" id="page-input" min="1" value="1" onchange="goToPage(this.value)">
+                            <span>/ <span id="total-pages">1</span></span>
+                            <button class="btn btn-icon btn-outline" onclick="nextPage()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="toolbar-group">
+                        <button class="btn btn-icon btn-outline" onclick="zoomOut()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                        </button>
+                        <span class="zoom-value" id="zoom-value">100%</span>
+                        <button class="btn btn-icon btn-outline" onclick="zoomIn()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                        </button>
+                        <button class="btn btn-outline" onclick="fitToWidth()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>
+                            <span>适应</span>
+                        </button>
+                    </div>
+                    <div class="toolbar-group">
+                        <button class="btn btn-outline" onclick="undoAction()" id="undo-btn" disabled>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>
+                            <span>撤销</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="pdf-container" id="pdf-container">
+                    <div class="empty-state" id="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        <h3>上传PDF文件开始签名</h3>
+                        <p>支持拖拽上传</p>
+                        <label class="btn btn-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            选择文件
+                            <input type="file" accept=".pdf" class="pdf-input-alt" hidden>
+                        </label>
+                    </div>
+                    <div class="pdf-wrapper" id="pdf-wrapper" style="display: none;">
+                        <canvas id="pdf-canvas"></canvas>
+                        <div class="signatures-layer" id="signatures-layer"></div>
+                    </div>
+                </div>
+
+                <div class="page-thumbnails" id="page-thumbnails" style="display: none;"></div>
+            </main>
+        </div>
+    </div>
+
+    <div class="placing-mode" id="placing-mode">
+        <span>📍 点击PDF放置签名</span>
+        <button onclick="cancelPlacing()">取消</button>
+    </div>
+
+    <div class="edit-hint" id="edit-hint">双击签名可编辑位置和大小</div>
+
+    <div class="zoom-indicator" id="zoom-indicator">100%</div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="signature-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">创建签名</h3>
+                <button class="modal-close" onclick="closeSignatureModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="signature-tabs">
+                    <button class="tab-btn active" data-tab="draw" onclick="switchTab('draw')">✏️ 手写</button>
+                    <button class="tab-btn" data-tab="text" onclick="switchTab('text')">🔤 文字</button>
+                    <button class="tab-btn" data-tab="upload" onclick="switchTab('upload')">📷 上传</button>
+                </div>
+
+                <div class="tab-content active" id="tab-draw">
+                    <div class="signature-canvas-wrapper">
+                        <canvas id="signature-canvas"></canvas>
+                        <div class="canvas-placeholder" id="canvas-placeholder">在此书写签名</div>
+                    </div>
+                    <div class="signature-options">
+                        <div class="option-group">
+                            <span class="option-label">颜色</span>
+                            <div class="color-picker" id="draw-color-picker">
+                                <div class="color-option selected" style="background:#000" data-color="#000000" onclick="setColor(this)"></div>
+                                <div class="color-option" style="background:#1e40af" data-color="#1e40af" onclick="setColor(this)"></div>
+                                <div class="color-option" style="background:#dc2626" data-color="#dc2626" onclick="setColor(this)"></div>
+                                <div class="color-option" style="background:#059669" data-color="#059669" onclick="setColor(this)"></div>
+                            </div>
+                        </div>
+                        <div class="option-group">
+                            <span class="option-label">粗细</span>
+                            <div class="stroke-width">
+                                <div class="stroke-option" data-width="2" onclick="setStrokeWidth(this)"><span style="width:4px;height:4px"></span></div>
+                                <div class="stroke-option selected" data-width="3" onclick="setStrokeWidth(this)"><span style="width:6px;height:6px"></span></div>
+                                <div class="stroke-option" data-width="5" onclick="setStrokeWidth(this)"><span style="width:10px;height:10px"></span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="canvas-actions">
+                        <button class="btn btn-outline" onclick="clearSignatureCanvas()">清除</button>
+                        <button class="btn btn-outline" onclick="undoCanvasStroke()">撤销</button>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-text">
+                    <input type="text" class="text-signature-input" id="text-signature-input" placeholder="输入姓名" oninput="updateTextPreview()">
+                    <div class="font-selector">
+                        <div class="font-option selected" data-font="sans-serif" onclick="setFont(this)" style="font-family:sans-serif">标准</div>
+                        <div class="font-option" data-font="serif" onclick="setFont(this)" style="font-family:serif">衬线</div>
+                        <div class="font-option" data-font="cursive" onclick="setFont(this)" style="font-family:cursive">手写</div>
+                        <div class="font-option" data-font="monospace" onclick="setFont(this)" style="font-family:monospace">等宽</div>
+                    </div>
+                    <div class="signature-options">
+                        <div class="option-group">
+                            <span class="option-label">颜色</span>
+                            <div class="color-picker" id="text-color-picker">
+                                <div class="color-option selected" style="background:#000" data-color="#000000" onclick="setTextColor(this)"></div>
+                                <div class="color-option" style="background:#1e40af" data-color="#1e40af" onclick="setTextColor(this)"></div>
+                                <div class="color-option" style="background:#dc2626" data-color="#dc2626" onclick="setTextColor(this)"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-preview" id="text-preview">预览</div>
+                </div>
+
+                <div class="tab-content" id="tab-upload">
+                    <label class="upload-area" id="upload-area">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                        <p>点击上传图片</p>
+                        <small>支持 PNG、JPG</small>
+                        <input type="file" accept="image/*" id="signature-upload" hidden>
+                    </label>
+                    <div class="upload-preview" id="upload-preview" style="display:none">
+                        <img id="uploaded-signature-img" src="" alt="">
+                        <button class="btn btn-outline" onclick="clearUploadedSignature()" style="margin-top:10px">重选</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeSignatureModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveSignature()">保存签名</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+        <p class="loading-text" id="loading-text">处理中...</p>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // ==================== 状态管理 ====================
+        const state = {
+            pdfDoc: null,
+            pdfArrayBuffer: null,
+            currentPage: 1,
+            totalPages: 0,
+            scale: 1,
+            baseScale: 1,
+            // PDF原始尺寸（用于计算百分比位置）
+            pdfOriginalWidth: 0,
+            pdfOriginalHeight: 0,
+            // 当前显示尺寸
+            displayWidth: 0,
+            displayHeight: 0,
+            // 签名数据
+            signatures: [],
+            // 已放置的签名（使用百分比位置）
+            // { id, pageNum, xPercent, yPercent, widthPercent, heightPercent, dataUrl }
+            placedSignatures: [],
+            selectedSignatureData: null,
+            editingSignatureId: null, // 当前正在编辑的签名ID
+            isPlacingMode: false,
+            undoStack: [],
+            // 签名画布
+            signatureColor: '#000000',
+            signatureStrokeWidth: 3,
+            textFont: 'sans-serif',
+            textColor: '#000000',
+            canvasStrokes: [],
+            // 双指缩放
+            pinchData: null
+        };
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            initSignatureCanvas();
+            loadSavedSignatures();
+            setupEventListeners();
+            setupPinchZoom();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('pdf-input').addEventListener('change', handlePDFUpload);
+            const altInput = document.querySelector('.pdf-input-alt');
+            if (altInput) altInput.addEventListener('change', handlePDFUpload);
+            document.getElementById('signature-upload').addEventListener('change', handleSignatureUpload);
+
+            // 拖拽上传PDF
+            const container = document.getElementById('pdf-container');
+            container.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+            container.addEventListener('drop', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                const files = e.dataTransfer.files;
+                if (files.length && files[0].type === 'application/pdf') loadPDFFile(files[0]);
+            });
+
+            // 点击空白处退出编辑模式
+            document.getElementById('signatures-layer').addEventListener('click', e => {
+                if (e.target.id === 'signatures-layer') exitEditMode();
+            });
+            document.getElementById('pdf-canvas').addEventListener('click', () => exitEditMode());
+
+            // 键盘快捷键
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape') {
+                    cancelPlacing();
+                    exitEditMode();
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                    e.preventDefault();
+                    undoAction();
+                }
+                if (e.key === 'Delete' && state.editingSignatureId) {
+                    deleteSignatureById(state.editingSignatureId);
+                }
+            });
+        }
+
+        // ==================== 双指缩放 ====================
+        function setupPinchZoom() {
+            const container = document.getElementById('pdf-container');
+            
+            container.addEventListener('touchstart', e => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    state.pinchData = {
+                        startDistance: getDistance(e.touches[0], e.touches[1]),
+                        startScale: state.scale
+                    };
+                }
+            }, { passive: false });
+
+            container.addEventListener('touchmove', e => {
+                if (e.touches.length === 2 && state.pinchData) {
+                    e.preventDefault();
+                    const dist = getDistance(e.touches[0], e.touches[1]);
+                    const newScale = Math.max(0.5, Math.min(3, state.pinchData.startScale * (dist / state.pinchData.startDistance)));
+                    
+                    if (Math.abs(newScale - state.scale) > 0.02) {
+                        state.scale = newScale;
+                        updateDisplaySize();
+                        showZoomIndicator(Math.round(state.scale * 100) + '%');
+                    }
+                }
+            }, { passive: false });
+
+            container.addEventListener('touchend', () => {
+                if (state.pinchData) {
+                    state.pinchData = null;
+                    hideZoomIndicator();
+                    renderPage(state.currentPage);
+                }
+            });
+        }
+
+        function getDistance(t1, t2) {
+            return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        }
+
+        function showZoomIndicator(text) {
+            const el = document.getElementById('zoom-indicator');
+            el.textContent = text;
+            el.classList.add('visible');
+        }
+
+        function hideZoomIndicator() {
+            document.getElementById('zoom-indicator').classList.remove('visible');
+        }
+
+        function updateDisplaySize() {
+            const canvas = document.getElementById('pdf-canvas');
+            if (!canvas.width) return;
+            
+            const ratio = state.scale / state.baseScale;
+            state.displayWidth = state.pdfOriginalWidth * state.scale;
+            state.displayHeight = state.pdfOriginalHeight * state.scale;
+            
+            canvas.style.width = state.displayWidth + 'px';
+            canvas.style.height = state.displayHeight + 'px';
+            
+            document.getElementById('zoom-value').textContent = Math.round(state.scale * 100) + '%';
+            
+            renderPlacedSignatures();
+        }
+
+        // ==================== PDF加载和渲染 ====================
+        async function handlePDFUpload(e) {
+            const file = e.target.files[0];
+            if (file) await loadPDFFile(file);
+            e.target.value = '';
+        }
+
+        async function loadPDFFile(file) {
+            showLoading('加载PDF...');
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                state.pdfArrayBuffer = arrayBuffer.slice(0);
+                state.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+                state.totalPages = state.pdfDoc.numPages;
+                state.currentPage = 1;
+                state.placedSignatures = [];
+                state.undoStack = [];
+
+                document.getElementById('total-pages').textContent = state.totalPages;
+                document.getElementById('page-input').max = state.totalPages;
+                document.getElementById('empty-state').style.display = 'none';
+                document.getElementById('pdf-wrapper').style.display = 'block';
+                document.getElementById('viewer-toolbar').style.display = 'flex';
+                document.getElementById('page-thumbnails').style.display = 'flex';
+                document.getElementById('export-btn').disabled = false;
+
+                await calculateScale();
+                await renderPage(state.currentPage);
+                await generateThumbnails();
+                
+                showToast('加载成功', 'success');
+            } catch (error) {
+                showToast('加载失败: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function calculateScale() {
+            const page = await state.pdfDoc.getPage(1);
+            const viewport = page.getViewport({ scale: 1 });
+            state.pdfOriginalWidth = viewport.width;
+            state.pdfOriginalHeight = viewport.height;
+            
+            const container = document.getElementById('pdf-container');
+            const maxWidth = container.clientWidth - 32;
+            state.baseScale = Math.min(maxWidth / viewport.width, 1.5);
+            state.scale = state.baseScale;
+        }
+
+        async function renderPage(pageNum) {
+            if (!state.pdfDoc) return;
+
+            const page = await state.pdfDoc.getPage(pageNum);
+            const canvas = document.getElementById('pdf-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // 高清渲染
+            const renderScale = state.scale * window.devicePixelRatio;
+            const viewport = page.getViewport({ scale: renderScale });
+            
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            
+            state.displayWidth = state.pdfOriginalWidth * state.scale;
+            state.displayHeight = state.pdfOriginalHeight * state.scale;
+            canvas.style.width = state.displayWidth + 'px';
+            canvas.style.height = state.displayHeight + 'px';
+
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
+            document.getElementById('page-input').value = pageNum;
+            document.getElementById('zoom-value').textContent = Math.round(state.scale * 100) + '%';
+            
+            renderPlacedSignatures();
+            updateThumbnails();
+            updateButtons();
+        }
+
+        async function generateThumbnails() {
+            const container = document.getElementById('page-thumbnails');
+            container.innerHTML = '';
+
+            for (let i = 1; i <= state.totalPages; i++) {
+                const page = await state.pdfDoc.getPage(i);
+                const viewport = page.getViewport({ scale: 0.15 });
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+                const thumb = document.createElement('div');
+                thumb.className = 'thumbnail' + (i === state.currentPage ? ' active' : '');
+                thumb.dataset.page = i;
+                thumb.onclick = () => goToPage(i);
+                thumb.innerHTML = `<img src="${canvas.toDataURL()}"><span class="thumbnail-number">${i}</span>`;
+                container.appendChild(thumb);
+            }
+        }
+
+        function updateThumbnails() {
+            document.querySelectorAll('.thumbnail').forEach(t => {
+                const p = parseInt(t.dataset.page);
+                t.classList.toggle('active', p === state.currentPage);
+                
+                const hasMarker = t.querySelector('.has-signature');
+                const hasSig = state.placedSignatures.some(s => s.pageNum === p);
+                
+                if (hasSig && !hasMarker) {
+                    t.insertAdjacentHTML('beforeend', '<span class="has-signature"></span>');
+                } else if (!hasSig && hasMarker) {
+                    hasMarker.remove();
+                }
+            });
+        }
+
+        function prevPage() { if (state.currentPage > 1) goToPage(state.currentPage - 1); }
+        function nextPage() { if (state.currentPage < state.totalPages) goToPage(state.currentPage + 1); }
+        function goToPage(n) {
+            n = parseInt(n);
+            if (n >= 1 && n <= state.totalPages && n !== state.currentPage) {
+                exitEditMode();
+                state.currentPage = n;
+                renderPage(n);
+            }
+        }
+
+        function zoomIn() { if (state.scale < 3) { state.scale = Math.min(3, state.scale + 0.25); renderPage(state.currentPage); } }
+        function zoomOut() { if (state.scale > 0.5) { state.scale = Math.max(0.5, state.scale - 0.25); renderPage(state.currentPage); } }
+        function fitToWidth() { state.scale = state.baseScale; renderPage(state.currentPage); }
+
+        // ==================== 签名画布 ====================
+        let sigCanvas, sigCtx;
+        let isDrawing = false, lastX = 0, lastY = 0, currentStroke = [];
+
+        function initSignatureCanvas() {
+            sigCanvas = document.getElementById('signature-canvas');
+            sigCtx = sigCanvas.getContext('2d');
+
+            const events = {
+                start: ['mousedown', 'touchstart'],
+                move: ['mousemove', 'touchmove'],
+                end: ['mouseup', 'touchend', 'mouseout']
+            };
+
+            events.start.forEach(e => sigCanvas.addEventListener(e, onDrawStart, { passive: false }));
+            events.move.forEach(e => sigCanvas.addEventListener(e, onDrawMove, { passive: false }));
+            events.end.forEach(e => sigCanvas.addEventListener(e, onDrawEnd));
+        }
+
+        function resizeSigCanvas() {
+            const wrapper = sigCanvas.parentElement;
+            sigCanvas.width = wrapper.clientWidth || 400;
+            sigCanvas.height = 180;
+            sigCtx.strokeStyle = state.signatureColor;
+            sigCtx.lineWidth = state.signatureStrokeWidth;
+            sigCtx.lineCap = 'round';
+            sigCtx.lineJoin = 'round';
+            redrawSigCanvas();
+        }
+
+        function getPos(e) {
+            const rect = sigCanvas.getBoundingClientRect();
+            const touch = e.touches ? e.touches[0] : e;
+            return {
+                x: (touch.clientX - rect.left) * (sigCanvas.width / rect.width),
+                y: (touch.clientY - rect.top) * (sigCanvas.height / rect.height)
+            };
+        }
+
+        function onDrawStart(e) {
+            e.preventDefault();
+            isDrawing = true;
+            const pos = getPos(e);
+            lastX = pos.x;
+            lastY = pos.y;
+            currentStroke = [pos];
+            document.getElementById('canvas-placeholder').classList.add('hidden');
+        }
+
+        function onDrawMove(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const pos = getPos(e);
+            sigCtx.beginPath();
+            sigCtx.moveTo(lastX, lastY);
+            sigCtx.lineTo(pos.x, pos.y);
+            sigCtx.stroke();
+            currentStroke.push(pos);
+            lastX = pos.x;
+            lastY = pos.y;
+        }
+
+        function onDrawEnd() {
+            if (isDrawing && currentStroke.length > 1) {
+                state.canvasStrokes.push({
+                    points: [...currentStroke],
+                    color: state.signatureColor,
+                    width: state.signatureStrokeWidth
+                });
+            }
+            isDrawing = false;
+            currentStroke = [];
+        }
+
+        function clearSignatureCanvas() {
+            sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+            state.canvasStrokes = [];
+            document.getElementById('canvas-placeholder').classList.remove('hidden');
+        }
+
+        function undoCanvasStroke() {
+            if (state.canvasStrokes.length) {
+                state.canvasStrokes.pop();
+                redrawSigCanvas();
+            }
+        }
+
+        function redrawSigCanvas() {
+            sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+            if (!state.canvasStrokes.length) {
+                document.getElementById('canvas-placeholder').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('canvas-placeholder').classList.add('hidden');
+            state.canvasStrokes.forEach(s => {
+                sigCtx.strokeStyle = s.color;
+                sigCtx.lineWidth = s.width;
+                sigCtx.beginPath();
+                sigCtx.moveTo(s.points[0].x, s.points[0].y);
+                s.points.forEach(p => sigCtx.lineTo(p.x, p.y));
+                sigCtx.stroke();
+            });
+            sigCtx.strokeStyle = state.signatureColor;
+            sigCtx.lineWidth = state.signatureStrokeWidth;
+        }
+
+        function setColor(el) {
+            document.querySelectorAll('#draw-color-picker .color-option').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+            state.signatureColor = el.dataset.color;
+            sigCtx.strokeStyle = state.signatureColor;
+        }
+
+        function setStrokeWidth(el) {
+            document.querySelectorAll('.stroke-option').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+            state.signatureStrokeWidth = parseInt(el.dataset.width);
+            sigCtx.lineWidth = state.signatureStrokeWidth;
+        }
+
+        function setFont(el) {
+            document.querySelectorAll('.font-option').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+            state.textFont = el.dataset.font;
+            updateTextPreview();
+        }
+
+        function setTextColor(el) {
+            document.querySelectorAll('#text-color-picker .color-option').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+            state.textColor = el.dataset.color;
+            updateTextPreview();
+        }
+
+        function updateTextPreview() {
+            const text = document.getElementById('text-signature-input').value || '预览';
+            const preview = document.getElementById('text-preview');
+            preview.textContent = text;
+            preview.style.fontFamily = state.textFont;
+            preview.style.color = state.textColor;
+        }
+
+        function handleSignatureUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    document.getElementById('uploaded-signature-img').src = ev.target.result;
+                    document.getElementById('upload-area').style.display = 'none';
+                    document.getElementById('upload-preview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function clearUploadedSignature() {
+            document.getElementById('signature-upload').value = '';
+            document.getElementById('uploaded-signature-img').src = '';
+            document.getElementById('upload-area').style.display = 'block';
+            document.getElementById('upload-preview').style.display = 'none';
+        }
+
+        // ==================== Modal ====================
+        function openSignatureModal() {
+            document.getElementById('signature-modal').classList.add('active');
+            setTimeout(resizeSigCanvas, 100);
+        }
+
+        function closeSignatureModal() {
+            document.getElementById('signature-modal').classList.remove('active');
+            clearSignatureCanvas();
+            document.getElementById('text-signature-input').value = '';
+            updateTextPreview();
+            clearUploadedSignature();
+            switchTab('draw');
+        }
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
+        }
+
+        function saveSignature() {
+            const tab = document.querySelector('.tab-btn.active').dataset.tab;
+            let dataUrl = '', name = '';
+
+            if (tab === 'draw') {
+                if (!state.canvasStrokes.length) { showToast('请先绘制签名', 'error'); return; }
+                dataUrl = getTrimmedCanvas();
+                name = '手写签名 ' + (state.signatures.length + 1);
+            } else if (tab === 'text') {
+                const text = document.getElementById('text-signature-input').value.trim();
+                if (!text) { showToast('请输入文字', 'error'); return; }
+                dataUrl = createTextSignature(text);
+                name = text;
+            } else {
+                const img = document.getElementById('uploaded-signature-img');
+                if (!img.src || img.src === location.href) { showToast('请上传图片', 'error'); return; }
+                dataUrl = img.src;
+                name = '上传签名 ' + (state.signatures.length + 1);
+            }
+
+            state.signatures.push({ id: Date.now(), name, dataUrl });
+            saveSignaturesToStorage();
+            renderSignatureList();
+            closeSignatureModal();
+            showToast('保存成功', 'success');
+        }
+
+        function getTrimmedCanvas() {
+            const data = sigCtx.getImageData(0, 0, sigCanvas.width, sigCanvas.height);
+            let minX = data.width, minY = data.height, maxX = 0, maxY = 0;
+            
+            for (let y = 0; y < data.height; y++) {
+                for (let x = 0; x < data.width; x++) {
+                    if (data.data[(y * data.width + x) * 4 + 3] > 0) {
+                        minX = Math.min(minX, x); minY = Math.min(minY, y);
+                        maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+                    }
+                }
+            }
+
+            const pad = 8;
+            minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+            maxX = Math.min(data.width, maxX + pad); maxY = Math.min(data.height, maxY + pad);
+
+            const trimmed = document.createElement('canvas');
+            trimmed.width = maxX - minX || 100;
+            trimmed.height = maxY - minY || 50;
+            trimmed.getContext('2d').drawImage(sigCanvas, minX, minY, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
+            return trimmed.toDataURL('image/png');
+        }
+
+        function createTextSignature(text) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const fontSize = 42;
+            ctx.font = `${fontSize}px ${state.textFont}`;
+            const metrics = ctx.measureText(text);
+            canvas.width = metrics.width + 24;
+            canvas.height = fontSize * 1.3 + 16;
+            ctx.font = `${fontSize}px ${state.textFont}`;
+            ctx.fillStyle = state.textColor;
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            return canvas.toDataURL('image/png');
+        }
+
+        // ==================== 签名列表 ====================
+        function renderSignatureList() {
+            const list = document.getElementById('signature-list');
+            list.innerHTML = state.signatures.map(s => `
+                <div class="signature-item">
+                    <img class="signature-preview" src="${s.dataUrl}" alt="${s.name}">
+                    <div class="signature-name">${s.name}</div>
+                    <div class="signature-actions">
+                        <button class="btn btn-primary" onclick="useSignature(${s.id})">使用</button>
+                        <button class="btn btn-danger" onclick="deleteSavedSignature(${s.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function useSignature(id) {
+            const sig = state.signatures.find(s => s.id === id);
+            if (!sig) return;
+            if (!state.pdfDoc) { showToast('请先上传PDF', 'error'); return; }
+
+            state.selectedSignatureData = { dataUrl: sig.dataUrl };
+            state.isPlacingMode = true;
+            document.getElementById('placing-mode').classList.add('active');
+            document.getElementById('pdf-wrapper').style.cursor = 'crosshair';
+            
+            toggleSidebar(false);
+            showToast('点击PDF放置签名');
+        }
+
+        function cancelPlacing() {
+            state.isPlacingMode = false;
+            state.selectedSignatureData = null;
+            document.getElementById('placing-mode').classList.remove('active');
+            document.getElementById('pdf-wrapper').style.cursor = '';
+        }
+
+        function deleteSavedSignature(id) {
+            if (confirm('删除此签名？')) {
+                state.signatures = state.signatures.filter(s => s.id !== id);
+                saveSignaturesToStorage();
+                renderSignatureList();
+                showToast('已删除');
+            }
+        }
+
+        function clearAllSignatures() {
+            if (!state.signatures.length) { showToast('没有签名', 'error'); return; }
+            if (confirm('清空所有签名？')) {
+                state.signatures = [];
+                saveSignaturesToStorage();
+                renderSignatureList();
+                showToast('已清空');
+            }
+        }
+
+        function saveSignaturesToStorage() {
+            try { localStorage.setItem('pdf-sigs', JSON.stringify(state.signatures)); } catch (e) {}
+        }
+
+        function loadSavedSignatures() {
+            try {
+                const saved = localStorage.getItem('pdf-sigs');
+                if (saved) { state.signatures = JSON.parse(saved); renderSignatureList(); }
+            } catch (e) {}
+        }
+
+        // ==================== 放置签名 ====================
+        document.getElementById('pdf-wrapper').addEventListener('click', function(e) {
+            if (!state.isPlacingMode || !state.selectedSignatureData) return;
+            if (e.target.closest('.placed-signature')) return;
+
+            const rect = this.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const dataUrl = state.selectedSignatureData.dataUrl;
+
+            const img = new Image();
+            img.onload = () => {
+                // 计算签名大小（相对于PDF原始尺寸的百分比）
+                const sigWidth = Math.min(120, img.width);
+                const sigHeight = (img.height / img.width) * sigWidth;
+                
+                const widthPercent = sigWidth / state.displayWidth * 100;
+                const heightPercent = sigHeight / state.displayHeight * 100;
+                const xPercent = (x - sigWidth / 2) / state.displayWidth * 100;
+                const yPercent = (y - sigHeight / 2) / state.displayHeight * 100;
+
+                const signature = {
+                    id: Date.now(),
+                    pageNum: state.currentPage,
+                    xPercent: Math.max(0, Math.min(100 - widthPercent, xPercent)),
+                    yPercent: Math.max(0, Math.min(100 - heightPercent, yPercent)),
+                    widthPercent,
+                    heightPercent,
+                    dataUrl
+                };
+
+                state.placedSignatures.push(signature);
+                state.undoStack.push({ type: 'add', id: signature.id });
+                
+                renderPlacedSignatures();
+                updateThumbnails();
+                updateButtons();
+                
+                // 显示编辑提示
+                showEditHint();
+            };
+            img.src = dataUrl;
+
+            cancelPlacing();
+        });
+
+        function showEditHint() {
+            const hint = document.getElementById('edit-hint');
+            hint.classList.add('visible');
+            setTimeout(() => hint.classList.remove('visible'), 2500);
+        }
+
+        // ==================== 渲染已放置的签名 ====================
+        function renderPlacedSignatures() {
+            const layer = document.getElementById('signatures-layer');
+            layer.innerHTML = '';
+
+            state.placedSignatures
+                .filter(s => s.pageNum === state.currentPage)
+                .forEach(sig => {
+                    // 使用百分比计算实际像素位置（相对于当前显示尺寸）
+                    const x = (sig.xPercent / 100) * state.displayWidth;
+                    const y = (sig.yPercent / 100) * state.displayHeight;
+                    const w = (sig.widthPercent / 100) * state.displayWidth;
+                    const h = (sig.heightPercent / 100) * state.displayHeight;
+
+                    const div = document.createElement('div');
+                    div.className = 'placed-signature' + (state.editingSignatureId === sig.id ? ' editing' : '');
+                    div.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+                    div.dataset.id = sig.id;
+
+                    div.innerHTML = `
+                        <img src="${sig.dataUrl}">
+                        <div class="resize-handle"></div>
+                        <button class="delete-btn" onclick="deleteSignatureById(${sig.id})">×</button>
+                    `;
+
+                    // 双击进入编辑模式
+                    div.addEventListener('dblclick', e => {
+                        e.stopPropagation();
+                        enterEditMode(sig.id);
+                    });
+
+                    // 单击选中但不进入编辑模式
+                    div.addEventListener('click', e => {
+                        e.stopPropagation();
+                    });
+
+                    layer.appendChild(div);
+
+                    // 只有编辑模式下才能拖拽
+                    if (state.editingSignatureId === sig.id) {
+                        setupInteract(div, sig);
+                    }
+                });
+        }
+
+        function enterEditMode(id) {
+            state.editingSignatureId = id;
+            renderPlacedSignatures();
+        }
+
+        function exitEditMode() {
+            if (state.editingSignatureId) {
+                state.editingSignatureId = null;
+                renderPlacedSignatures();
+            }
+        }
+
+        // ==================== interact.js 拖拽和缩放 ====================
+        function setupInteract(element, sig) {
+            interact(element)
+                .draggable({
+                    inertia: false,
+                    modifiers: [
+                        interact.modifiers.restrict({
+                            restriction: 'parent',
+                            endOnly: false
+                        })
+                    ],
+                    listeners: {
+                        move(event) {
+                            // 计算新位置（百分比）
+                            const deltaXPercent = (event.dx / state.displayWidth) * 100;
+                            const deltaYPercent = (event.dy / state.displayHeight) * 100;
+                            
+                            sig.xPercent = Math.max(0, Math.min(100 - sig.widthPercent, sig.xPercent + deltaXPercent));
+                            sig.yPercent = Math.max(0, Math.min(100 - sig.heightPercent, sig.yPercent + deltaYPercent));
+
+                            // 更新显示位置
+                            const x = (sig.xPercent / 100) * state.displayWidth;
+                            const y = (sig.yPercent / 100) * state.displayHeight;
+                            event.target.style.left = x + 'px';
+                            event.target.style.top = y + 'px';
+                        }
+                    }
+                })
+                .resizable({
+                    edges: { right: '.resize-handle', bottom: '.resize-handle' },
+                    modifiers: [
+                        interact.modifiers.aspectRatio({ ratio: 'preserve' }),
+                        interact.modifiers.restrictSize({
+                            min: { width: 30, height: 20 },
+                            max: { width: state.displayWidth * 0.8, height: state.displayHeight * 0.8 }
+                        })
+                    ],
+                    listeners: {
+                        move(event) {
+                            // 更新尺寸（百分比）
+                            sig.widthPercent = (event.rect.width / state.displayWidth) * 100;
+                            sig.heightPercent = (event.rect.height / state.displayHeight) * 100;
+
+                            event.target.style.width = event.rect.width + 'px';
+                            event.target.style.height = event.rect.height + 'px';
+                        }
+                    }
+                });
+        }
+
+        function deleteSignatureById(id) {
+            const idx = state.placedSignatures.findIndex(s => s.id === id);
+            if (idx !== -1) {
+                const removed = state.placedSignatures.splice(idx, 1)[0];
+                state.undoStack.push({ type: 'remove', signature: removed });
+                
+                if (state.editingSignatureId === id) state.editingSignatureId = null;
+                
+                renderPlacedSignatures();
+                updateThumbnails();
+                updateButtons();
+                showToast('已删除');
+            }
+        }
+
+        function undoAction() {
+            if (!state.undoStack.length) { showToast('没有可撤销操作', 'error'); return; }
+            
+            const action = state.undoStack.pop();
+            
+            if (action.type === 'add') {
+                const idx = state.placedSignatures.findIndex(s => s.id === action.id);
+                if (idx !== -1) state.placedSignatures.splice(idx, 1);
+            } else if (action.type === 'remove') {
+                state.placedSignatures.push(action.signature);
+            }
+
+            renderPlacedSignatures();
+            updateThumbnails();
+            updateButtons();
+            showToast('已撤销');
+        }
+
+        function updateButtons() {
+            document.getElementById('undo-btn').disabled = !state.undoStack.length;
+        }
+
+        // ==================== 导出PDF ====================
+        async function exportPDF() {
+            if (!state.pdfArrayBuffer) { showToast('请先上传PDF', 'error'); return; }
+            if (!state.placedSignatures.length) { showToast('请先添加签名', 'error'); return; }
+
+            showLoading('导出中...');
+
+            try {
+                const pdfDoc = await PDFLib.PDFDocument.load(state.pdfArrayBuffer.slice(0));
+                const pages = pdfDoc.getPages();
+
+                for (const sig of state.placedSignatures) {
+                    const page = pages[sig.pageNum - 1];
+                    if (!page) continue;
+
+                    const { width: pw, height: ph } = page.getSize();
+
+                    // 将百分比转换为PDF坐标
+                    const x = (sig.xPercent / 100) * pw;
+                    const y = ph - ((sig.yPercent + sig.heightPercent) / 100) * ph;
+                    const w = (sig.widthPercent / 100) * pw;
+                    const h = (sig.heightPercent / 100) * ph;
+
+                    try {
+                        const base64 = sig.dataUrl.split(',')[1];
+                        const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                        const image = sig.dataUrl.includes('png') 
+                            ? await pdfDoc.embedPng(bytes)
+                            : await pdfDoc.embedJpg(bytes);
+                        
+                        page.drawImage(image, { x, y, width: w, height: h });
+                    } catch (e) {
+                        console.error('Embed error:', e);
+                    }
+                }
+
+                const bytes = await pdfDoc.save();
+                const blob = new Blob([bytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'signed_' + Date.now() + '.pdf';
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                showToast('导出成功', 'success');
+            } catch (error) {
+                showToast('导出失败: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // ==================== UI工具函数 ====================
+        function toggleSidebar(show) {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.querySelector('.sidebar-overlay');
+            
+            if (show === undefined) {
+                sidebar.classList.toggle('open');
+                overlay.classList.toggle('open');
+            } else if (show) {
+                sidebar.classList.add('open');
+                overlay.classList.add('open');
+            } else {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('open');
+            }
+        }
+
+        function showLoading(text) {
+            document.getElementById('loading-text').textContent = text;
+            document.getElementById('loading-overlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.remove('active');
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 200);
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
